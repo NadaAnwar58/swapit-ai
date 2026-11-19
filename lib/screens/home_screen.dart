@@ -4,10 +4,18 @@ import '../data/sample_items.dart';
 import '../theme/app_colors.dart';
 import '../widgets/item_card.dart';
 import 'item_details_screen.dart';
+import 'profile_screen.dart';
 
 /// الشاشة الرئيسية: قايمة الأغراض.
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  final String userName;
+  final String userEmail;
+
+  const HomeScreen({
+    super.key,
+    this.userName = 'Alex',
+    this.userEmail = 'alex@swapit.app',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -17,13 +25,36 @@ class HomeScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
-            const Text(
-              'Hello, Alex',
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primary,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Hello, $userName',
+                  style: const TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ProfileScreen(
+                          userName: userName,
+                          userEmail: userEmail,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.person_outline,
+                    size: 28,
+                    color: AppColors.primary,
+                  ),
+                  tooltip: 'Profile',
+                ),
+              ],
             ),
             const SizedBox(height: 4),
             const Text(

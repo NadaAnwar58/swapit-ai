@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
 import 'theme/app_colors.dart';
 
 void main() {
@@ -26,7 +26,7 @@ class SwapitApp extends StatelessWidget {
           error: AppColors.error,
         ),
       ),
-      home: const HomeScreen(),
+      home: const LoginScreen(),
     );
   }
 }
