@@ -61,7 +61,7 @@ class WelcomeScreen extends StatelessWidget {
                 ),
                 SizedBox(height: 14),
                 Text(
-                  'بدّل اللي مش محتاجه بحاجة إنت محتاجها.',
+                  'بدّل اللي مركون عندك بحاجة نفسك فيها.',
                   textAlign: TextAlign.center,
                   textDirection: TextDirection.rtl,
                   style: TextStyle(
