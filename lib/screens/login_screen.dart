@@ -1,9 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../services/supabase_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show AuthException, AuthResponse, User;
+
+import '../services/swapit_supabase_service.dart';
 import '../theme/app_colors.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
+
+InputDecoration _fieldDecoration(String hint, {Widget? suffixIcon}) {
+  final OutlineInputBorder border = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(12),
+    borderSide: const BorderSide(color: AppColors.border),
+  );
+
+  return InputDecoration(
+    hintText: hint,
+    filled: true,
+    fillColor: AppColors.softBox,
+    suffixIcon: suffixIcon,
+    border: border,
+    enabledBorder: border,
+    errorStyle: const TextStyle(color: AppColors.error),
+  );
+}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,9 +32,9 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
 
@@ -26,32 +45,44 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.error,
+      ),
+    );
+  }
+
   Future<void> _handleLogin() async {
-    if (!_formKey.currentState!.validate() || _isLoading) return;
+    if (_isLoading) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _isLoading = true);
 
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
+    final String email = _emailController.text.trim();
+    final String password = _passwordController.text;
 
     try {
-      final response = await SwapitSupabaseService.signIn(
+      final AuthResponse response = await SwapitSupabaseService.signIn(
         email: email,
         password: password,
       );
 
       if (!mounted) return;
 
-      final user = response.user;
-      final metadataName = user?.userMetadata?['full_name']?.toString().trim();
-      final nameFromEmail = email.split('@').first;
-      final resolvedName = (metadataName != null && metadataName.isNotEmpty)
-          ? metadataName
-          : (nameFromEmail.isNotEmpty ? nameFromEmail : 'User');
+      final User? user = response.user;
+      final String? metadataName =
+          user?.userMetadata?['full_name']?.toString().trim();
+      final String nameFromEmail = email.split('@').first;
+      final String resolvedName =
+          (metadataName != null && metadataName.isNotEmpty)
+              ? metadataName
+              : (nameFromEmail.isNotEmpty ? nameFromEmail : 'User');
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
           builder: (_) => HomeScreen(
             userName: resolvedName,
             userEmail: user?.email ?? email,
@@ -59,21 +90,9 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     } on AuthException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      _showError(e.message);
     } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('تعذر تسجيل الدخول، حاولي مرة أخرى.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      _showError('تعذر تسجيل الدخول، حاول مرة أخرى.');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -92,7 +111,7 @@ class _LoginScreenState extends State<LoginScreen> {
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+              children: <Widget>[
                 const SizedBox(height: 36),
                 const Text(
                   'Welcome back',
@@ -105,14 +124,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 8),
                 const Text(
                   'Sign in to continue swapping on Swapit.',
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: AppColors.muted,
-                  ),
+                  style: TextStyle(fontSize: 15, color: AppColors.muted),
                 ),
                 const SizedBox(height: 32),
-
-                // Email field
                 const Text(
                   'Email',
                   style: TextStyle(
@@ -125,21 +139,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    hintText: 'you@example.com',
-                    filled: true,
-                    fillColor: AppColors.softBox,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.border),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.border),
-                    ),
-                    errorStyle: const TextStyle(color: AppColors.error),
-                  ),
-                  validator: (value) {
+                  autofillHints: const <String>[AutofillHints.email],
+                  decoration: _fieldDecoration('you@example.com'),
+                  validator: (String? value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Please enter your email.';
                     }
@@ -147,8 +149,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
                 const SizedBox(height: 20),
-
-                // Password field
                 const Text(
                   'Password',
                   style: TextStyle(
@@ -161,10 +161,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    hintText: 'Enter your password',
-                    filled: true,
-                    fillColor: AppColors.softBox,
+                  autofillHints: const <String>[AutofillHints.password],
+                  decoration: _fieldDecoration(
+                    'Enter your password',
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword
@@ -173,22 +172,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         color: AppColors.muted,
                       ),
                       onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
+                        setState(() => _obscurePassword = !_obscurePassword);
                       },
                     ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.border),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.border),
-                    ),
-                    errorStyle: const TextStyle(color: AppColors.error),
                   ),
-                  validator: (value) {
+                  validator: (String? value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Please enter your password.';
                     }
@@ -196,8 +184,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
                 const SizedBox(height: 28),
-
-                // Login button
                 ElevatedButton(
                   onPressed: _isLoading ? null : _handleLogin,
                   style: ElevatedButton.styleFrom(
@@ -226,24 +212,23 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                 ),
                 const SizedBox(height: 20),
-
-                // Go to Register
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
+                  children: <Widget>[
                     const Text(
                       "Don't have an account? ",
                       style: TextStyle(color: AppColors.muted),
                     ),
                     TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const RegisterScreen(),
-                          ),
-                        );
-                      },
+                      onPressed: _isLoading
+                          ? null
+                          : () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const RegisterScreen(),
+                                ),
+                              );
+                            },
                       child: const Text(
                         'Sign Up',
                         style: TextStyle(

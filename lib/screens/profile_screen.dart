@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
-import '../services/supabase_service.dart';
+
+import '../services/swapit_supabase_service.dart';
 import '../theme/app_colors.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
+import 'my_items_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  final String userName;
-  final String userEmail;
-
   const ProfileScreen({
     super.key,
-    this.userName = 'Swapit User',
-    this.userEmail = 'user@swapit.app',
+    this.userName = '',
+    this.userEmail = '',
   });
+
+  final String userName;
+  final String userEmail;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -21,183 +23,164 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _isSigningOut = false;
 
-  String get _resolvedName {
-    final user = SwapitSupabaseService.currentUser;
-    final metaName = user?.userMetadata?['full_name']?.toString().trim();
-    if (metaName != null && metaName.isNotEmpty) return metaName;
-    if (widget.userName.trim().isNotEmpty) return widget.userName.trim();
-    final email = _resolvedEmail;
-    if (email.contains('@')) return email.split('@').first;
-    return 'Swapit User';
+  String get _displayName {
+    final String name = widget.userName.trim();
+    return name.isEmpty ? 'Swapit user' : name;
   }
 
-  String get _resolvedEmail {
-    final sessionEmail = SwapitSupabaseService.currentUser?.email?.trim();
-    if (sessionEmail != null && sessionEmail.isNotEmpty) return sessionEmail;
-    return widget.userEmail.trim();
+  String get _displayEmail {
+    final String email = widget.userEmail.trim();
+    if (email.isNotEmpty) return email;
+    return SwapitSupabaseService.currentUser?.email ?? '';
   }
 
-  Future<void> _handleSignOut() async {
+  Future<void> _logout() async {
     if (_isSigningOut) return;
+
+    final NavigatorState navigator = Navigator.of(context);
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+
     setState(() => _isSigningOut = true);
 
     try {
       await SwapitSupabaseService.signOut();
-      if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+        (Route<dynamic> route) => false,
       );
     } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(
-          content: Text('تعذر تسجيل الخروج، حاولي مرة أخرى.'),
           backgroundColor: AppColors.error,
+          content: Text('Could not log out. Please try again.'),
         ),
       );
-      setState(() => _isSigningOut = false);
+      if (mounted) {
+        setState(() => _isSigningOut = false);
+      }
     }
+  }
+
+  Widget _actionTile({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onTap,
+    Color color = AppColors.primary,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: AppColors.softBox,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: AppColors.border),
+        ),
+        child: ListTile(
+          onTap: onTap,
+          leading: Icon(icon, color: color),
+          title: Text(
+            label,
+            style: TextStyle(fontWeight: FontWeight.w600, color: color),
+          ),
+          trailing: const Icon(Icons.chevron_right, color: AppColors.muted),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final displayName = _resolvedName;
-    final displayEmail = _resolvedEmail;
+    final String initial = _displayName.characters.first.toUpperCase();
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        iconTheme: const IconThemeData(color: AppColors.primary),
         title: const Text(
           'Profile',
           style: TextStyle(
             color: AppColors.primary,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
           ),
         ),
-        iconTheme: const IconThemeData(color: AppColors.primary),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.softBox,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Column(
-                  children: [
-                    CircleAvatar(
-                      radius: 36,
-                      backgroundColor: AppColors.secondary,
-                      child: Text(
-                        displayName.isNotEmpty
-                            ? displayName[0].toUpperCase()
-                            : 'S',
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      displayName,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      displayEmail,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: AppColors.muted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Go to Market button
-              OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => HomeScreen(
-                        userName: displayName,
-                        userEmail: displayEmail,
-                      ),
-                    ),
-                  );
-                },
-                icon: const Icon(
-                  Icons.storefront_outlined,
-                  color: AppColors.primary,
-                ),
-                label: const Text(
-                  'Go to Market',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primary,
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: const BorderSide(color: AppColors.border),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-
-              const Spacer(),
-
-              // Log Out button
-              ElevatedButton.icon(
-                onPressed: _isSigningOut ? null : _handleSignOut,
-                icon: _isSigningOut
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.logout, color: Colors.white),
-                label: Text(
-                  _isSigningOut ? 'Signing Out...' : 'Log Out',
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: <Widget>[
+            const SizedBox(height: 8),
+            Center(
+              child: CircleAvatar(
+                radius: 42,
+                backgroundColor: AppColors.primary,
+                child: Text(
+                  initial,
                   style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 34,
+                    fontWeight: FontWeight.w700,
                     color: Colors.white,
                   ),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.error,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Center(
+              child: Text(
+                _displayName,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+            if (_displayEmail.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 4),
+              Center(
+                child: Text(
+                  _displayEmail,
+                  style: const TextStyle(fontSize: 14, color: AppColors.muted),
                 ),
               ),
             ],
-          ),
+            const SizedBox(height: 28),
+            _actionTile(
+              icon: Icons.inventory_2_outlined,
+              label: 'My Items',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const MyItemsScreen(),
+                  ),
+                );
+              },
+            ),
+            _actionTile(
+              icon: Icons.home_outlined,
+              label: 'Browse Items',
+              onTap: () {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute<void>(
+                    builder: (_) => HomeScreen(
+                      userName: widget.userName,
+                      userEmail: widget.userEmail,
+                    ),
+                  ),
+                  (Route<dynamic> route) => false,
+                );
+              },
+            ),
+            _actionTile(
+              icon: Icons.logout,
+              label: _isSigningOut ? 'Logging out...' : 'Log out',
+              color: AppColors.error,
+              onTap: _isSigningOut ? null : _logout,
+            ),
+          ],
         ),
       ),
     );

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/sample_items.dart';
 import '../models/swap_item.dart';
-import '../services/supabase_service.dart';
+import '../services/swapit_supabase_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/item_card.dart';
 import 'add_item_screen.dart';
@@ -47,21 +47,24 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final favoriteIds = await SwapitSupabaseService.fetchFavoriteItemIds();
-      final rows = await SwapitSupabaseService.fetchItems();
+      final Set<String> favoriteIds =
+          await SwapitSupabaseService.fetchFavoriteItemIds();
+      final List<Map<String, dynamic>> rows =
+          await SwapitSupabaseService.fetchItems();
       if (!mounted) return;
-      _favoriteIds = favoriteIds;
 
       if (rows.isEmpty) {
         setState(() {
+          _favoriteIds = favoriteIds;
           _items = List<SwapItem>.from(sampleItems);
           _isLoading = false;
         });
         return;
       }
 
-      final mapped = rows.map(_mapRowToSwapItem).toList();
+      final List<SwapItem> mapped = rows.map(_mapRowToSwapItem).toList();
       setState(() {
+        _favoriteIds = favoriteIds;
         _items = mapped;
         _isLoading = false;
       });
@@ -76,7 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// يفتح شاشة إضافة غرض، ولو رجعت `true` بيعمل تحديث للقايمة.
   Future<void> _openAddItemScreen() async {
-    final result = await Navigator.of(context).push<bool>(
+    final bool? result = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(builder: (_) => const AddItemScreen()),
     );
 
@@ -89,7 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// بيحوّل الغرض التجريبي لـ Map عشان شاشة التفاصيل.
   Map<String, dynamic> _sampleToMap(SwapItem item) {
-    final url = item.imageUrl;
+    final String? url = item.imageUrl;
     return <String, dynamic>{
       'id': item.id,
       'owner_id': '',
@@ -109,7 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// بيفتح شاشة التفاصيل، ولو حالة المفضلة اتغيرت بيحدّث القايمة.
   Future<void> _openItemDetails(SwapItem item) async {
-    final changed = await Navigator.of(context).push<bool>(
+    final bool? changed = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
         builder: (_) => ItemDetailsScreen(
           item: item.raw ?? _sampleToMap(item),
@@ -121,51 +124,57 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
 
     if (changed == true) {
-      final favoriteIds = await SwapitSupabaseService.fetchFavoriteItemIds();
-      if (!mounted) return;
-      setState(() => _favoriteIds = favoriteIds);
+      try {
+        final Set<String> favoriteIds =
+            await SwapitSupabaseService.fetchFavoriteItemIds();
+        if (!mounted) return;
+        setState(() => _favoriteIds = favoriteIds);
+      } catch (_) {
+        // Keep the old favorites if the refresh fails.
+      }
     }
   }
 
   SwapItem _mapRowToSwapItem(Map<String, dynamic> row) {
-    final fallback = sampleItems.first;
-    final title = (row['title'] ?? 'Swap Item').toString().trim();
-    final description = (row['description'] ?? '').toString().trim();
-    final condition = (row['condition'] ?? 'Good').toString().trim();
-    final city = (row['city'] ?? '').toString().trim();
-    final district = (row['district'] ?? '').toString().trim();
-    final kind = (row['kind'] ?? '').toString().trim().toLowerCase();
+    final SwapItem fallback = sampleItems.first;
+    final String title = (row['title'] ?? 'Swap Item').toString().trim();
+    final String description = (row['description'] ?? '').toString().trim();
+    final String condition = (row['condition'] ?? 'Good').toString().trim();
+    final String city = (row['city'] ?? '').toString().trim();
+    final String district = (row['district'] ?? '').toString().trim();
+    final String kind = (row['kind'] ?? '').toString().trim().toLowerCase();
 
-    final rawPrice = row['estimated_price_egp'];
-    final priceEgp = rawPrice is num
+    final dynamic rawPrice = row['estimated_price_egp'];
+    final int priceEgp = rawPrice is num
         ? rawPrice.round()
         : int.tryParse(rawPrice?.toString() ?? '') ?? fallback.priceEgp;
 
-    final locationLabel = [
+    final String locationLabel = <String>[
       if (district.isNotEmpty) district,
       if (city.isNotEmpty) city,
     ].join(', ');
 
-    final rawDistance = row['distance_km'];
-    final distanceKm = rawDistance is num
+    final dynamic rawDistance = row['distance_km'];
+    final double distanceKm = rawDistance is num
         ? rawDistance.toDouble()
-        : double.tryParse(rawDistance?.toString() ?? '') ?? fallback.distanceKm;
+        : double.tryParse(rawDistance?.toString() ?? '') ??
+            fallback.distanceKm;
 
-    final rawMatch = row['match_percent'];
-    final matchPercent = rawMatch is num
+    final dynamic rawMatch = row['match_percent'];
+    final int matchPercent = rawMatch is num
         ? rawMatch.round()
         : int.tryParse(rawMatch?.toString() ?? '') ?? fallback.matchPercent;
 
     String pickText(String key, String fallbackValue) {
-      final value = (row[key] ?? '').toString().trim();
+      final String value = (row[key] ?? '').toString().trim();
       return value.isEmpty ? fallbackValue : value;
     }
 
-    final rawImages = row['image_urls'];
+    final dynamic rawImages = row['image_urls'];
     String? imageUrl;
     if (rawImages is List) {
-      for (final entry in rawImages) {
-        final url = entry?.toString().trim() ?? '';
+      for (final dynamic entry in rawImages) {
+        final String url = entry?.toString().trim() ?? '';
         if (url.isNotEmpty) {
           imageUrl = url;
           break;
@@ -173,9 +182,9 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    final isWanted = kind == 'want' || kind == 'request';
+    final bool isWanted = kind == 'want' || kind == 'request';
 
-    final categoryLabel =
+    final String categoryLabel =
         (row['category'] ?? (isWanted ? 'WANTED' : 'GENERAL'))
             .toString()
             .toUpperCase();
@@ -210,10 +219,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<SwapItem> get _filteredItems {
-    final q = _searchQuery.trim().toLowerCase();
+    final String q = _searchQuery.trim().toLowerCase();
     if (q.isEmpty) return _items;
 
-    return _items.where((item) {
+    return _items.where((SwapItem item) {
       return item.title.toLowerCase().contains(q) ||
           item.category.toLowerCase().contains(q) ||
           item.categoryLine.toLowerCase().contains(q) ||
@@ -223,7 +232,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final visibleItems = _filteredItems;
+    final List<SwapItem> visibleItems = _filteredItems;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -241,10 +250,10 @@ class _HomeScreenState extends State<HomeScreen> {
           child: ListView(
             // مسافة تحت زيادة عشان الزرار العايم ما يغطيش آخر عنصر.
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
-            children: [
+            children: <Widget>[
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
+                children: <Widget>[
                   Expanded(
                     child: Text(
                       'Hello, ${widget.userName}',
@@ -259,7 +268,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   IconButton(
                     onPressed: () {
                       Navigator.of(context).push(
-                        MaterialPageRoute(
+                        MaterialPageRoute<void>(
                           builder: (_) => ProfileScreen(
                             userName: widget.userName,
                             userEmail: widget.userEmail,
@@ -286,18 +295,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 height: 48,
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(color: AppColors.border),
                 ),
                 child: Row(
-                  children: [
+                  children: <Widget>[
                     const Icon(Icons.search, color: AppColors.muted),
                     const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
                         controller: _searchController,
-                        onChanged: (value) =>
+                        onChanged: (String value) =>
                             setState(() => _searchQuery = value),
                         decoration: const InputDecoration(
                           hintText: 'Search items, categories, or cities...',
@@ -328,11 +337,11 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 22),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
+                children: <Widget>[
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+                      children: <Widget>[
                         Text(
                           'Your Smart Matches',
                           style: TextStyle(
@@ -344,7 +353,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         SizedBox(height: 2),
                         Text(
                           'Ranked by AI compatibility & fair value',
-                          style: TextStyle(fontSize: 12, color: AppColors.muted),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.muted,
+                          ),
                         ),
                       ],
                     ),
@@ -364,7 +376,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 32),
                   child: Center(
-                    child: CircularProgressIndicator(color: AppColors.secondary),
+                    child:
+                        CircularProgressIndicator(color: AppColors.secondary),
                   ),
                 )
               else if (visibleItems.isEmpty)
@@ -378,7 +391,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 )
               else
-                for (final item in visibleItems)
+                for (final SwapItem item in visibleItems)
                   ItemCard(
                     item: item,
                     onTap: () => _openItemDetails(item),

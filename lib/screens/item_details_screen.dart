@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show PostgrestException, User;
 
-import '../services/supabase_service.dart';
+import '../services/swapit_supabase_service.dart';
 import '../theme/app_colors.dart';
 
 String _cleanError(Object error) {
@@ -57,10 +58,11 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
 
   String get _itemId => _text('id');
 
+  /// صاحب الغرض (عمود `owner_id` في جدول `items`).
   String get _ownerId => _text('owner_id');
 
   bool get _isOwnItem {
-    final user = SwapitSupabaseService.currentUser;
+    final User? user = SwapitSupabaseService.currentUser;
     return user != null && _ownerId.isNotEmpty && _ownerId == user.id;
   }
 
@@ -115,18 +117,14 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
       return;
     }
 
-    setState(() {
-      _isTogglingFavorite = true;
-    });
+    setState(() => _isTogglingFavorite = true);
 
     try {
       final bool nowFavorite =
           await SwapitSupabaseService.toggleFavorite(_itemId);
       if (!mounted) return;
 
-      setState(() {
-        _isFavorite = nowFavorite;
-      });
+      setState(() => _isFavorite = nowFavorite);
       messenger.showSnackBar(
         SnackBar(
           content: Text(
@@ -144,9 +142,7 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
       );
     } finally {
       if (mounted) {
-        setState(() {
-          _isTogglingFavorite = false;
-        });
+        setState(() => _isTogglingFavorite = false);
       }
     }
   }
@@ -157,8 +153,9 @@ class _ItemDetailsScreenState extends State<ItemDetailsScreen> {
     if (_itemId.isEmpty || _ownerId.isEmpty) {
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('This is a sample item, so it cannot receive swap '
-              'requests.'),
+          content: Text(
+            'This is a sample item, so it cannot receive swap requests.',
+          ),
         ),
       );
       return;
@@ -723,11 +720,7 @@ class _ProposeSwapSheetState extends State<_ProposeSwapSheet> {
           selected: _selectedItemId == null,
           onTap: _isSubmitting
               ? null
-              : () {
-                  setState(() {
-                    _selectedItemId = null;
-                  });
-                },
+              : () => setState(() => _selectedItemId = null),
         ),
         for (final Map<String, dynamic> item in _myItems)
           _SelectableTile(
@@ -736,11 +729,9 @@ class _ProposeSwapSheetState extends State<_ProposeSwapSheet> {
             selected: _selectedItemId == (item['id'] ?? '').toString(),
             onTap: _isSubmitting
                 ? null
-                : () {
-                    setState(() {
-                      _selectedItemId = (item['id'] ?? '').toString();
-                    });
-                  },
+                : () => setState(
+                      () => _selectedItemId = (item['id'] ?? '').toString(),
+                    ),
           ),
       ],
     );

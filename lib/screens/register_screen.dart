@@ -1,8 +1,27 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../services/supabase_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show AuthException, AuthResponse;
+
+import '../services/swapit_supabase_service.dart';
 import '../theme/app_colors.dart';
 import 'home_screen.dart';
+
+InputDecoration _fieldDecoration(String hint, {Widget? suffixIcon}) {
+  final OutlineInputBorder border = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(12),
+    borderSide: const BorderSide(color: AppColors.border),
+  );
+
+  return InputDecoration(
+    hintText: hint,
+    filled: true,
+    fillColor: AppColors.softBox,
+    suffixIcon: suffixIcon,
+    border: border,
+    enabledBorder: border,
+    errorStyle: const TextStyle(color: AppColors.error),
+  );
+}
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -12,10 +31,10 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
 
@@ -27,17 +46,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.error,
+      ),
+    );
+  }
+
   Future<void> _handleRegister() async {
-    if (!_formKey.currentState!.validate() || _isLoading) return;
+    if (_isLoading) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _isLoading = true);
 
-    final fullName = _nameController.text.trim();
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
+    final String fullName = _nameController.text.trim();
+    final String email = _emailController.text.trim();
+    final String password = _passwordController.text;
 
     try {
-      final response = await SwapitSupabaseService.signUp(
+      final AuthResponse response = await SwapitSupabaseService.signUp(
         email: email,
         password: password,
         fullName: fullName,
@@ -49,40 +79,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'تم إنشاء الحساب بنجاح! راجعي بريدك الإلكتروني لتأكيد الحساب ثم سجّلي الدخول.',
+              'تم إنشاء الحساب بنجاح! راجع بريدك الإلكتروني لتأكيد الحساب ثم سجّل الدخول.',
             ),
           ),
         );
-        Navigator.pop(context);
+        Navigator.of(context).pop();
         return;
       }
 
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute<void>(
           builder: (_) => HomeScreen(
             userName: fullName,
             userEmail: response.user?.email ?? email,
           ),
         ),
-        (route) => false,
+        (Route<dynamic> route) => false,
       );
     } on AuthException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      _showError(e.message);
     } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('تعذر إنشاء الحساب، حاولي مرة أخرى.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      _showError('تعذر إنشاء الحساب، حاول مرة أخرى.');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -97,6 +114,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
+        scrolledUnderElevation: 0,
         iconTheme: const IconThemeData(color: AppColors.primary),
       ),
       body: SafeArea(
@@ -106,7 +124,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+              children: <Widget>[
                 const Text(
                   'Create account',
                   style: TextStyle(
@@ -118,14 +136,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 8),
                 const Text(
                   'Join Swapit and start trading items.',
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: AppColors.muted,
-                  ),
+                  style: TextStyle(fontSize: 15, color: AppColors.muted),
                 ),
                 const SizedBox(height: 28),
-
-                // Name field
                 const Text(
                   'Full Name',
                   style: TextStyle(
@@ -138,21 +151,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 TextFormField(
                   controller: _nameController,
                   textCapitalization: TextCapitalization.words,
-                  decoration: InputDecoration(
-                    hintText: 'Enter your full name',
-                    filled: true,
-                    fillColor: AppColors.softBox,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.border),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.border),
-                    ),
-                    errorStyle: const TextStyle(color: AppColors.error),
-                  ),
-                  validator: (value) {
+                  decoration: _fieldDecoration('Enter your full name'),
+                  validator: (String? value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Please enter your name.';
                     }
@@ -160,8 +160,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 18),
-
-                // Email field
                 const Text(
                   'Email',
                   style: TextStyle(
@@ -174,21 +172,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    hintText: 'you@example.com',
-                    filled: true,
-                    fillColor: AppColors.softBox,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.border),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.border),
-                    ),
-                    errorStyle: const TextStyle(color: AppColors.error),
-                  ),
-                  validator: (value) {
+                  decoration: _fieldDecoration('you@example.com'),
+                  validator: (String? value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Please enter your email.';
                     }
@@ -196,8 +181,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 18),
-
-                // Password field
                 const Text(
                   'Password',
                   style: TextStyle(
@@ -210,10 +193,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    hintText: 'Create a password',
-                    filled: true,
-                    fillColor: AppColors.softBox,
+                  decoration: _fieldDecoration(
+                    'Create a password',
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword
@@ -222,22 +203,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         color: AppColors.muted,
                       ),
                       onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
+                        setState(() => _obscurePassword = !_obscurePassword);
                       },
                     ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.border),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.border),
-                    ),
-                    errorStyle: const TextStyle(color: AppColors.error),
                   ),
-                  validator: (value) {
+                  validator: (String? value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Please enter a password.';
                     }
@@ -248,8 +218,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 28),
-
-                // Sign Up button
                 ElevatedButton(
                   onPressed: _isLoading ? null : _handleRegister,
                   style: ElevatedButton.styleFrom(
@@ -278,17 +246,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                 ),
                 const SizedBox(height: 18),
-
-                // Back to Login
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
+                  children: <Widget>[
                     const Text(
                       'Already have an account? ',
                       style: TextStyle(color: AppColors.muted),
                     ),
                     TextButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed:
+                          _isLoading ? null : () => Navigator.of(context).pop(),
                       child: const Text(
                         'Sign In',
                         style: TextStyle(
