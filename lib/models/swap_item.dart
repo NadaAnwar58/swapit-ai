@@ -22,6 +22,12 @@ class SwapItem {
   final int ownerSwaps;
   final String memberSince;
 
+  /// رابط صورة الغرض (اختياري). لو null بيتعرض الشكل الافتراضي.
+  final String? imageUrl;
+
+  /// الصف الأصلي من قاعدة البيانات (null للأغراض التجريبية).
+  final Map<String, dynamic>? raw;
+
   const SwapItem({
     required this.id,
     required this.title,
@@ -44,6 +50,8 @@ class SwapItem {
     required this.ownerName,
     required this.ownerSwaps,
     required this.memberSince,
+    this.imageUrl,
+    this.raw,
   });
 
   /// مثال: ~32,000 EGP

@@ -12,6 +12,34 @@ class ItemCard extends StatelessWidget {
 
   const ItemCard({super.key, required this.item, required this.onTap});
 
+  static const double _imageHeight = 190;
+
+  /// بيعرض صورة الغرض لو فيه رابط، ولو مفيش (أو فشل التحميل)
+  /// بيرجع للشكل الافتراضي.
+  Widget _buildImage() {
+    final url = item.imageUrl?.trim() ?? '';
+    if (url.isEmpty) {
+      return const ImagePlaceholder(height: _imageHeight);
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: Image.network(
+        url,
+        width: double.infinity,
+        height: _imageHeight,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return const ImagePlaceholder(height: _imageHeight);
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return const ImagePlaceholder(height: _imageHeight);
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final warn = item.isLargeGap;
@@ -34,7 +62,7 @@ class ItemCard extends StatelessWidget {
               children: [
                 Stack(
                   children: [
-                    const ImagePlaceholder(height: 190),
+                    _buildImage(),
                     Positioned(
                       top: 10,
                       left: 10,

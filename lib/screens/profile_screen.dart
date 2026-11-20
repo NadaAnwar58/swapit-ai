@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   final String userName;
   final String userEmail;
 
@@ -14,7 +15,57 @@ class ProfileScreen extends StatelessWidget {
   });
 
   @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  bool _isSigningOut = false;
+
+  String get _resolvedName {
+    final user = SwapitSupabaseService.currentUser;
+    final metaName = user?.userMetadata?['full_name']?.toString().trim();
+    if (metaName != null && metaName.isNotEmpty) return metaName;
+    if (widget.userName.trim().isNotEmpty) return widget.userName.trim();
+    final email = _resolvedEmail;
+    if (email.contains('@')) return email.split('@').first;
+    return 'Swapit User';
+  }
+
+  String get _resolvedEmail {
+    final sessionEmail = SwapitSupabaseService.currentUser?.email?.trim();
+    if (sessionEmail != null && sessionEmail.isNotEmpty) return sessionEmail;
+    return widget.userEmail.trim();
+  }
+
+  Future<void> _handleSignOut() async {
+    if (_isSigningOut) return;
+    setState(() => _isSigningOut = true);
+
+    try {
+      await SwapitSupabaseService.signOut();
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تعذر تسجيل الخروج، حاولي مرة أخرى.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      setState(() => _isSigningOut = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final displayName = _resolvedName;
+    final displayEmail = _resolvedEmail;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -48,7 +99,9 @@ class ProfileScreen extends StatelessWidget {
                       radius: 36,
                       backgroundColor: AppColors.secondary,
                       child: Text(
-                        userName.isNotEmpty ? userName[0].toUpperCase() : 'S',
+                        displayName.isNotEmpty
+                            ? displayName[0].toUpperCase()
+                            : 'S',
                         style: const TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
@@ -58,7 +111,7 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      userName,
+                      displayName,
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -67,7 +120,7 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      userEmail,
+                      displayEmail,
                       style: const TextStyle(
                         fontSize: 14,
                         color: AppColors.muted,
@@ -83,10 +136,18 @@ class ProfileScreen extends StatelessWidget {
                 onPressed: () {
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (_) => const HomeScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => HomeScreen(
+                        userName: displayName,
+                        userEmail: displayEmail,
+                      ),
+                    ),
                   );
                 },
-                icon: const Icon(Icons.storefront_outlined, color: AppColors.primary),
+                icon: const Icon(
+                  Icons.storefront_outlined,
+                  color: AppColors.primary,
+                ),
                 label: const Text(
                   'Go to Market',
                   style: TextStyle(
@@ -108,17 +169,20 @@ class ProfileScreen extends StatelessWidget {
 
               // Log Out button
               ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                    (route) => false,
-                  );
-                },
-                icon: const Icon(Icons.logout, color: Colors.white),
-                label: const Text(
-                  'Log Out',
-                  style: TextStyle(
+                onPressed: _isSigningOut ? null : _handleSignOut,
+                icon: _isSigningOut
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.logout, color: Colors.white),
+                label: Text(
+                  _isSigningOut ? 'Signing Out...' : 'Log Out',
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
