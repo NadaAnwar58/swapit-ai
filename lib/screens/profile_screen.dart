@@ -5,6 +5,7 @@ import '../theme/app_colors.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 import 'my_items_screen.dart';
+import 'swap_requests_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -21,7 +22,22 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  final TextEditingController _whatsappController = TextEditingController();
+
   bool _isSigningOut = false;
+  bool _isSavingWhatsapp = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWhatsapp();
+  }
+
+  @override
+  void dispose() {
+    _whatsappController.dispose();
+    super.dispose();
+  }
 
   String get _displayName {
     final String name = widget.userName.trim();
@@ -32,6 +48,61 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final String email = widget.userEmail.trim();
     if (email.isNotEmpty) return email;
     return SwapitSupabaseService.currentUser?.email ?? '';
+  }
+
+  Future<void> _loadWhatsapp() async {
+    final user = SwapitSupabaseService.currentUser;
+    if (user == null) return;
+
+    try {
+      final Map<String, dynamic>? profile =
+          await SwapitSupabaseService.fetchProfile(user.id);
+      if (!mounted) return;
+      _whatsappController.text = (profile?['whatsapp'] ?? '').toString();
+    } catch (_) {
+      // Leave the field empty if loading fails.
+    }
+  }
+
+  Future<void> _saveWhatsapp() async {
+    if (_isSavingWhatsapp) return;
+
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    final String number = _whatsappController.text.trim();
+    final String digits = number.replaceAll(RegExp(r'[^0-9]'), '');
+
+    if (digits.length < 10) {
+      messenger.showSnackBar(
+        const SnackBar(
+          backgroundColor: AppColors.error,
+          content: Text('Please enter a valid WhatsApp number.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSavingWhatsapp = true);
+
+    try {
+      await SwapitSupabaseService.saveMyWhatsapp(number);
+      messenger.showSnackBar(
+        const SnackBar(
+          backgroundColor: AppColors.secondary,
+          content: Text('WhatsApp number saved.'),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.error,
+          content: Text('Could not save the number: $e'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSavingWhatsapp = false);
+      }
+    }
   }
 
   Future<void> _logout() async {
@@ -85,6 +156,70 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           trailing: const Icon(Icons.chevron_right, color: AppColors.muted),
         ),
+      ),
+    );
+  }
+
+  Widget _whatsappCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text(
+            'WhatsApp number',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Shown to the other person only after a swap is accepted.',
+            style: TextStyle(fontSize: 12, color: AppColors.muted),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _whatsappController,
+            keyboardType: TextInputType.phone,
+            decoration: InputDecoration(
+              hintText: '01012345678',
+              filled: true,
+              fillColor: AppColors.softBox,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _isSavingWhatsapp ? null : _saveWhatsapp,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.secondary,
+              ),
+              child: _isSavingWhatsapp
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Save number'),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -147,7 +282,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ],
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
+            _whatsappCard(),
+            _actionTile(
+              icon: Icons.swap_horiz,
+              label: 'Swap Requests',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const SwapRequestsScreen(),
+                  ),
+                );
+              },
+            ),
             _actionTile(
               icon: Icons.inventory_2_outlined,
               label: 'My Items',

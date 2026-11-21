@@ -8,6 +8,7 @@ class SwapitSupabaseService {
   static const String itemsTable = 'items';
   static const String favoritesTable = 'favorites';
   static const String swapRequestsTable = 'swap_requests';
+  static const String profilesTable = 'profiles';
   static const String imagesBucket = 'item-images';
 
   static SupabaseClient get client => Supabase.instance.client;
@@ -254,5 +255,86 @@ class SwapitSupabaseService {
       'message': message.trim(),
       'status': 'pending',
     });
+  }
+
+  static const String _requestColumns =
+      '*, target:items!target_item_id(title), offered:items!offered_item_id(title)';
+
+  /// Requests other people sent for the current user's items.
+  static Future<List<Map<String, dynamic>>> fetchIncomingRequests() async {
+    final User user = _requireUser();
+
+    final data = await client
+        .from(swapRequestsTable)
+        .select(_requestColumns)
+        .eq('target_owner_id', user.id)
+        .order('created_at', ascending: false);
+
+    return List<Map<String, dynamic>>.from(data);
+  }
+
+  /// Requests the current user sent to other people.
+  static Future<List<Map<String, dynamic>>> fetchOutgoingRequests() async {
+    final User user = _requireUser();
+
+    final data = await client
+        .from(swapRequestsTable)
+        .select(_requestColumns)
+        .eq('requester_id', user.id)
+        .order('created_at', ascending: false);
+
+    return List<Map<String, dynamic>>.from(data);
+  }
+
+  /// Item owner accepts or rejects a request. [status] is `accepted` or `rejected`.
+  static Future<void> updateRequestStatus({
+    required String requestId,
+    required String status,
+  }) async {
+    final User user = _requireUser();
+
+    await client
+        .from(swapRequestsTable)
+        .update(<String, dynamic>{'status': status})
+        .eq('id', requestId)
+        .eq('target_owner_id', user.id)
+        .eq('status', 'pending');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Profiles (WhatsApp)
+  // ---------------------------------------------------------------------------
+
+  /// Returns the profile row (full_name, whatsapp), or null if you are not
+  /// allowed to see it. Other people's profiles are visible only after an
+  /// accepted swap (enforced by the database).
+  static Future<Map<String, dynamic>?> fetchProfile(String userId) async {
+    final Map<String, dynamic>? row = await client
+        .from(profilesTable)
+        .select('full_name, whatsapp')
+        .eq('id', userId)
+        .maybeSingle();
+    return row;
+  }
+
+  static Future<void> saveMyWhatsapp(String number) async {
+    final User user = _requireUser();
+
+    await client.from(profilesTable).upsert(<String, dynamic>{
+      'id': user.id,
+      'whatsapp': number.trim(),
+    });
+  }
+
+  /// Builds a wa.me link. Egyptian numbers like 01012345678 become
+  /// https://wa.me/201012345678
+  static String whatsappLink(String rawNumber) {
+    String digits = rawNumber.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.startsWith('00')) {
+      digits = digits.substring(2);
+    } else if (digits.startsWith('0')) {
+      digits = '20${digits.substring(1)}';
+    }
+    return 'https://wa.me/$digits';
   }
 }
